@@ -1,0 +1,48 @@
+name: Release Template
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  zip-template:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Update package.json version
+        run: |
+          jq ".version = \"${{ env.VERSION }}\"" package.json > tmp.json && mv tmp.json package.json
+
+      - name: Clean up unnecessary files
+        run: |
+          rm -rf node_modules .next dist *.zip
+
+      - name: Create zip archive
+        run: |
+          mkdir nextjs-template
+          # copy tất cả ngoại trừ các folder không cần thiết
+          rsync -av --progress ./ nextjs-template \
+            --exclude node_modules \
+            --exclude .next \
+            --exclude dist \
+            --exclude .git \
+            --exclude .github \
+            --exclude '*.zip'
+          zip -r nextjs-template-${{ env.VERSION }}.zip nextjs-template
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: nextjs-template-${{ env.VERSION }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
